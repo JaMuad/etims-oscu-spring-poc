@@ -253,8 +253,6 @@ This project follows a three-environment lifecycle before any code reaches produ
 | `staging` | `staging` | Pre-production validation, integration tests against sandbox |
 | `production` | `main` | Live client traffic, nothing goes here without passing staging |
 
-**Current Status:** All code has been pushed to `staging` as of August 19, 2026. The application boots cleanly, connects to PostgreSQL 18.6, creates all schema tables automatically, and the async worker is operational. The Slack and Email alerting integration is pending KRA sandbox recovery.
-
 ---
 
 ## Roadmap
