@@ -18,7 +18,7 @@ import java.util.List;
 public class EtimsSyncWorker {
 
     private final TransactionRepository transactionRepository;
-    private final KraAuthService kraAuthService;
+    private final KraInitializationService kraInitializationService;
     private final KraAlertService kraAlertService;
 
     private static final int MAX_RETRIES = 5;
@@ -41,11 +41,11 @@ public class EtimsSyncWorker {
         log.info("Found {} transactions to sync with KRA", pendingTx.size());
 
         try {
-            // Step 1: Ensure KRA is up by grabbing an auth token
+            // Step 1: Initialize device to check connectivity (and fetch cmcKey in the future)
             // If KRA is down, this will throw an exception and we abort the batch gracefully.
-            kraAuthService.fetchToken();
+            kraInitializationService.initializeDevice();
             
-            // If we succeed in grabbing a token, KRA is UP!
+            // If we succeed, KRA is UP!
             kraAlertService.recordSuccess();
 
             // Step 2: Process each transaction

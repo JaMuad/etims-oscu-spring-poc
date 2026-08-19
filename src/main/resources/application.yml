@@ -21,7 +21,7 @@ spring:
 
 kra:
   api:
-    base-url: ${KRA_API_BASE_URL:https://sbx.kra.go.ke/v1}
+    base-url: ${KRA_API_BASE_URL:https://etims-api-sbx.kra.go.ke/etims-api}
     consumer-key: ${KRA_CONSUMER_KEY:default-key}
     consumer-secret: ${KRA_CONSUMER_SECRET:default-secret}
     pin: ${KRA_PIN:default-pin}

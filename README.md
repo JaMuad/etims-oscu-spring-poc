@@ -21,17 +21,15 @@ A proof-of-concept Spring Boot microservice for integrating with the Kenya Reven
 
 ## Project Background
 
-### Registering with developer.go.ke
-Access to the KRA eTIMS OSCU sandbox requires registration on the [Kenya Digital Economy Portal (developer.go.ke)](https://developer.go.ke). After approval, you receive an API consumer key and consumer secret for the **GavaConnect** gateway.
+### Registering for eTIMS OSCU
+Access to the KRA eTIMS OSCU sandbox requires registration on the [eTIMS Taxpayer Sandbox Portal](https://etims-sbx.kra.go.ke). This requires submitting a Service Request for an OSCU device.
 
-This PoC targets the **eTIMS Sandbox OSCU Automated Testing API** hosted on GavaConnect. The authentication flow is OAuth 2.0 `client_credentials`, meaning every request must be prefixed with a valid Bearer token obtained from the `/token/generate` endpoint.
+This PoC targets the **eTIMS Sandbox API** (`https://etims-api-sbx.kra.go.ke/etims-api`). The authentication flow relies on a fiscal initialization handshake (`/selectInitOsdcInfo`) using a KRA PIN and Branch ID to receive a long-lived Communication Key (`cmcKey`).
 
 ### Sandbox Discovery and KRA Downtime
-During the initial integration phase, I encountered a live service interruption formally announced on the developer portal:
+During the initial integration phase, I discovered that the sandbox environment is frequently unresponsive, and documentation often points to incorrect endpoints. 
 
-> *"The eTIMS Sandbox OSCU Automated Testing API on the GavaConnect is currently experiencing a service interruption. We apologize for any inconvenience and appreciate your patience as we work to restore the service. GavaConnect Team"*
-
-Rather than blocking development on a third-party dependency, **this downtime became the catalyst for building a more resilient system**. I used that time to implement the asynchronous PostgreSQL retry queue described below.
+Rather than blocking development on a broken dependency, **this downtime became the foundation for building a more resilient system**. I used that time to implement the asynchronous PostgreSQL retry queue described below.
 ---
 
 ## Architecture Decisions
@@ -42,7 +40,7 @@ Rather than blocking development on a third-party dependency, **this downtime be
 | **Async PostgreSQL Retry Queue** | Invoices are never lost to a KRA outage. They queue in PostgreSQL and are automatically synced when KRA recovers. |
 | **`.env` for All Secrets** | Zero hardcoding. All API keys, DB credentials, and webhook URLs live in a `.env` file that is excluded from version control. |
 | **No Spring `dotenv` Plugin** | Spring Boot's native `spring.config.import: optional:file:.env[.properties]` is used to read the `.env` file. This avoids third-party dependency risk and works identically. |
-| **Manual Jackson Parsing** | KRA's GavaConnect gateway returns JSON responses with a `Content-Type: application/x-www-form-urlencoded` header. Spring's built-in REST client rejects this mismatch, so the raw response body is read as a `String` and parsed manually with `ObjectMapper`. |
+| **Manual Jackson Parsing** | KRA's API occasionally returns unexpected content-types or unparseable payloads during sandbox downtimes, so defensive Jackson mapping is required. |
 
 ---
 
@@ -91,7 +89,9 @@ src/main/java/com/muad/etims/
 │
 ├── dto/
 │   └── response/
-│       └── KraAuthResponse.java          # Java record for the KRA OAuth token response
+│       └── InitDeviceResponse.java       # Java record for the KRA initialization response
+│       └── request/
+│           └── InitDeviceRequest.java    # Java record for the KRA initialization request
 │
 ├── entity/
 │   ├── Transaction.java                  # Core invoice entity with KRA compliance fields
@@ -104,7 +104,7 @@ src/main/java/com/muad/etims/
 │   └── KraSystemAuditRepository.java     # JPA repository for the audit log
 │
 └── service/
-    ├── KraAuthService.java               # OAuth 2.0 client_credentials token fetcher
+    ├── KraInitializationService.java     # eTIMS device initialization (fetches cmcKey)
     ├── KraAlertService.java              # Tracks failures and triggers DB audit plus Slack/Email alerts
     └── EtimsSyncWorker.java              # Scheduled background worker running every 30 seconds
 ```
@@ -117,7 +117,7 @@ src/main/java/com/muad/etims/
 - Java 25+
 - Apache Maven or the bundled `./mvnw` wrapper
 - PostgreSQL 18.6 running on `127.0.0.1:5432`
-- KRA GavaConnect API credentials from [developer.go.ke](https://developer.go.ke)
+- KRA eTIMS API credentials from [etims-sbx.kra.go.ke](https://etims-sbx.kra.go.ke)
 
 ### 1. Create the Database
 ```bash
@@ -149,10 +149,8 @@ DB_URL=jdbc:postgresql://127.0.0.1:5432/etims_poc_db
 DB_USERNAME=postgres
 DB_PASSWORD=your_password_here
 
-# KRA GavaConnect API Credentials
-KRA_API_BASE_URL=https://sbx.kra.go.ke/v1
-KRA_CONSUMER_KEY=your_consumer_key_here
-KRA_CONSUMER_SECRET=your_consumer_secret_here
+# KRA eTIMS API Credentials
+KRA_API_BASE_URL=https://etims-api-sbx.kra.go.ke/etims-api
 KRA_PIN=your_kra_pin_here
 KRA_DEVICE_SERIAL=your_device_serial_here
 KRA_BRANCH_ID=00
@@ -172,11 +170,11 @@ KRA_BRANCH_ID=00
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/test/kra/auth` | Manually triggers a KRA OAuth2 token fetch and returns the result |
+| `GET` | `/api/v1/test/kra-auth` | Manually triggers the KRA Initialization handshake to test connectivity |
 
 **Example:**
 ```bash
-curl -s http://localhost:8080/test/kra/auth | jq .
+curl -s http://localhost:8080/api/v1/test/kra-auth | jq .
 ```
 
 ---

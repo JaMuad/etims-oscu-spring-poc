@@ -1,9 +1,8 @@
 package com.muad.etims.controller;
 
-import com.muad.etims.dto.response.KraAuthResponse;
-import com.muad.etims.service.KraAuthService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.muad.etims.dto.response.InitDeviceResponse;
+import com.muad.etims.service.KraInitializationService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,62 +11,43 @@ import org.springframework.web.client.RestClientResponseException;
 
 import java.util.Map;
 
-/**
- * Scratch test controller — only exists to drive ad-hoc manual verification
- * of the KRA connectivity layer during PoC development.
- *
- * <p><strong>Remove or gate behind a dev profile before any production promotion.</strong>
- *
- * <p>Test with:
- * <pre>
- *   curl -s http://localhost:8080/test/kra/auth | jq .
- * </pre>
- */
+@Slf4j
 @RestController
-@RequestMapping("/test/kra")
+@RequestMapping("/api/v1/test")
 public class EtimsTestController {
 
-    private static final Logger log = LoggerFactory.getLogger(EtimsTestController.class);
+    private final KraInitializationService kraInitializationService;
 
-    private final KraAuthService kraAuthService;
-
-    public EtimsTestController(KraAuthService kraAuthService) {
-        this.kraAuthService = kraAuthService;
+    public EtimsTestController(KraInitializationService kraInitializationService) {
+        this.kraInitializationService = kraInitializationService;
     }
 
     /**
-     * Triggers the KRA OAuth2 client-credentials handshake and returns the
-     * sanitised token details (never the raw secret/key, only what KRA sends back).
-     *
-     * @return 200 with token metadata on success, or a structured error body on failure.
+     * Endpoint to quickly test connecting to KRA and grabbing a token.
      */
-    @GetMapping("/auth")
-    public ResponseEntity<?> testAuth() {
-        log.info("Manual auth test triggered via GET /test/kra/auth");
+    @GetMapping("/kra-auth")
+    public ResponseEntity<?> testKraAuth() {
+        log.info("Test Endpoint triggered: /api/v1/test/kra-auth");
         try {
-            KraAuthResponse token = kraAuthService.fetchToken();
+            InitDeviceResponse response = kraInitializationService.initializeDevice();
             return ResponseEntity.ok(Map.of(
-                    "status",    "SUCCESS",
-                    "tokenType", token.tokenType() != null ? token.tokenType() : "unknown",
-                    "expiresIn", token.expiresIn(),
-                    "tokenSnippet", obfuscate(token.accessToken())
+                    "status", "success",
+                    "message", "Successfully reached KRA Initialization endpoint",
+                    "data", response
             ));
         } catch (RestClientResponseException ex) {
-            log.error("Auth test failed: {}", ex.getMessage());
-            return ResponseEntity
-                    .status(ex.getStatusCode())
-                    .body(Map.of(
-                            "status",  "KRA_ERROR",
-                            "httpStatus", ex.getStatusCode().value(),
-                            "kraMessage", ex.getResponseBodyAsString()
-                    ));
+            log.error("KRA HTTP Error", ex);
+            return ResponseEntity.status(ex.getStatusCode()).body(Map.of(
+                    "status", "error",
+                    "message", ex.getMessage(),
+                    "body", ex.getResponseBodyAsString()
+            ));
         } catch (Exception ex) {
-            log.error("Unexpected failure during auth test", ex);
-            return ResponseEntity.internalServerError()
-                    .body(Map.of(
-                            "status",  "INTERNAL_ERROR",
-                            "message", ex.getMessage()
-                    ));
+            log.error("KRA Auth Failure", ex);
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "status", "error",
+                    "message", ex.getMessage()
+            ));
         }
     }
 
