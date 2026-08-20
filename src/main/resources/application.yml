@@ -2,12 +2,14 @@ server:
   port: 8080
 
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: etims-oscu-spring-poc
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/etims_poc_db}
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/etims_poc_db}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:postgres}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -19,9 +21,9 @@ spring:
 
 kra:
   api:
-    base-url: ${KRA_API_BASE_URL:https://sbx.kra.go.ke/v1}
-    consumer-key: ${KRA_CONSUMER_KEY}
-    consumer-secret: ${KRA_CONSUMER_SECRET}
-    pin: ${KRA_PIN}
-    device-serial: ${KRA_DEVICE_SERIAL}
-    branch-id: ${KRA_BRANCH_ID}
+    base-url: ${KRA_API_BASE_URL:https://etims-api-sbx.kra.go.ke/etims-api}
+    consumer-key: ${KRA_CONSUMER_KEY:default-key}
+    consumer-secret: ${KRA_CONSUMER_SECRET:default-secret}
+    pin: ${KRA_PIN:default-pin}
+    device-serial: ${KRA_DEVICE_SERIAL:default-serial}
+    branch-id: ${KRA_BRANCH_ID:00}
